@@ -6,7 +6,7 @@
 #define SS_PIN 10
 
 byte readCard[4];
-char* myTags[100] = {};
+char* tags[2] = {};
 int tagsCount = 0;
 String tagID = "";
 boolean successRead = false;
@@ -14,25 +14,26 @@ boolean correctTag = false;
 boolean doorOpened = false;
 
 // Create instances
-MFRC522 mfrc522(SS_PIN, RST_PIN);
-Servo myServo; // Servo motor
+MFRC522 mfrc522(SS_PIN, RST_PIN); // RFID module
+Servo servo; // Servo motor
 
 void setup() {
-    Serial.begin(9600);
-  
     // Initiating
+    Serial.begin(9600);
     SPI.begin();        // SPI bus
     mfrc522.PCD_Init(); //  MFRC522
-    myServo.attach(6);  // Servo motor
-    myServo.write(0); // Initial lock position of the servo motor
+    servo.attach(6);  // Servo motor
+    servo.write(0); // Initial lock position of the servo motor
+
+    Serial.print("Scan and set the master tag");
     
     // Waits until a master card is scanned
     while (!successRead) {
         successRead = getID();
         if ( successRead == true) {
-          myTags[tagsCount] = strdup(tagID.c_str()); // Sets the master tag into position 0 in the array
-          Serial.print("Master Tag Set!");
-          Serial.print(myTags[tagsCount]);
+          tags[tagsCount] = strdup(tagID.c_str()); // Sets the master tag into position 0 in the array
+          Serial.print("Master Tag Set! \n");
+          Serial.print(tags[tagsCount]);
           tagsCount++;
         }
     }
@@ -59,12 +60,19 @@ void loop() {
       tagID.toUpperCase();
       mfrc522.PICC_HaltA(); // Stop reading
 
-      if (tagID == myTags[0])
+      // Check if scanned tag is master tag
+      if (tagID == tags[0])
       {
-          Serial.print("NICE!");
-          myServo.write(45);
-          delay(1000);
-          myServo.write(0);
+          Serial.print("Access granted \n");
+        
+          // Unlock door
+          servo.write(135);
+
+          // Wait 3 seconds
+          delay(3000);
+
+          // Lock door
+          servo.write(0);
       }
       
 }
@@ -77,7 +85,7 @@ uint8_t getID() {
     }
     
     if ( ! mfrc522.PICC_ReadCardSerial()) {
-        //Since a PICC placed get Serial and continue
+        // Since a PICC placed get Serial and continue
         return 0;
     }
     
@@ -98,6 +106,6 @@ uint8_t getID() {
 
 void printNormalModeMessage() {
     delay(1500);
-    Serial.print("-Access Control-");
-    Serial.print("Scan Your Tag!");
+    Serial.print("-Access Control- \n");
+    Serial.print("Scan Your Tag! \n");
 }
