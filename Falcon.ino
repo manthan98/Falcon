@@ -25,7 +25,7 @@ void setup() {
     servo.attach(6);  // Servo motor
     servo.write(0); // Initial lock position of the servo motor
 
-    Serial.print("Scan and set the master tag");
+    Serial.print("Scan and set the master tag \n");
     
     // Waits until a master card is scanned
     while (!successRead) {
@@ -38,6 +38,21 @@ void setup() {
         }
     }
     successRead = false;
+
+    Serial.print("Scan a secondary access tag \n");
+
+    // Adds secondary user card
+    while (!successRead) {
+        successRead = getID();
+        if ( successRead == true) {
+          tags[tagsCount] = strdup(tagID.c_str()); // Sets the master tag into position 0 in the array
+          Serial.print("Secondary Tag Set! \n");
+          Serial.print(tags[tagsCount]);
+          tagsCount++;
+        }
+    }
+    successRead = false;
+    
     printNormalModeMessage();
 }
 
@@ -73,6 +88,9 @@ void loop() {
 
           // Lock door
           servo.write(0);
+      } else
+      {
+          Serial.print("Access denied! \n");
       }
       
 }
