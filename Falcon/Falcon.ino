@@ -9,9 +9,9 @@ byte readCard[4];
 char* tags[2] = {};
 int tagsCount = 0;
 String tagID = "";
+String userInput;
 boolean successRead = false;
-boolean correctTag = false;
-boolean doorOpened = false;
+boolean needsUserInput = true;
 
 // Create instances
 MFRC522 mfrc522(SS_PIN, RST_PIN); // RFID module
@@ -31,57 +31,74 @@ void setup() {
     while (!successRead) {
         successRead = getID();
         if ( successRead == true) {
-          tags[tagsCount] = strdup(tagID.c_str()); // Sets the master tag into position 0 in the array
-          Serial.print("Master Tag Set! \n");
-          Serial.print(tags[tagsCount]);
-          tagsCount++;
-        }
-    }
-    successRead = false;
-
-    Serial.print("Scan a secondary access tag \n");
-
-    // Adds secondary user card
-    while (!successRead) {
-        successRead = getID();
-        if ( successRead == true) {
-          tags[tagsCount] = strdup(tagID.c_str()); // Sets the master tag into position 0 in the array
-          Serial.print("Secondary Tag Set! \n");
-          Serial.print(tags[tagsCount]);
-          tagsCount++;
+            tags[tagsCount] = strdup(tagID.c_str()); // Sets the master tag into position 0 in the array
+            Serial.print("Master Tag Set! \n");
+            Serial.print(tags[tagsCount]);
+            Serial.print("\n");
+            tagsCount++;
         }
     }
     successRead = false;
     
-    printNormalModeMessage();
+    Serial.print("Scan a secondary access tag \n");
+    
+    // Adds secondary user card
+    while (!successRead) {
+        successRead = getID();
+        if ( successRead == true) {
+            tags[tagsCount] = strdup(tagID.c_str()); // Sets the secondary tag into position 1 in the array
+            Serial.print("Secondary Tag Set! \n");
+            Serial.print(tags[tagsCount]);
+            Serial.print("\n");
+            tagsCount++;
+        }
+    }
+    successRead = false;
+
+    // Request master client key from server
+    Serial.println(3);
 }
 
 void loop() {
+
+      while (needsUserInput) {
+          if (Serial.available()) {
+              userInput = Serial.readString();
+              if (userInput != NULL) {
+                  Serial.print(userInput);
+                  Serial.print("\n");
+                  needsUserInput = false;
+              }
+          }
+      }
   
-      if ( ! mfrc522.PICC_IsNewCardPresent()) { //If a new PICC placed to RFID reader continue
-        return;
+      if ( !mfrc522.PICC_IsNewCardPresent() ) {
+          // If a new PICC placed to RFID reader continue
+          return;
       }
       
-      if ( ! mfrc522.PICC_ReadCardSerial()) {   //Since a PICC placed get Serial and continue
-        return;
+      if ( !mfrc522.PICC_ReadCardSerial() ) {
+          //Since a PICC placed get Serial and continue
+          return;
       }
       
       tagID = "";
+      
       // The MIFARE PICCs that we use have 4 byte UID
-      for ( uint8_t i = 0; i < 4; i++) {  //
+      for ( uint8_t i = 0; i < 4; i++) {
         readCard[i] = mfrc522.uid.uidByte[i];
         tagID.concat(String(mfrc522.uid.uidByte[i], HEX)); // Adds the 4 bytes in a single String variable
       }
       tagID.toUpperCase();
       mfrc522.PICC_HaltA(); // Stop reading
 
-      // Check if scanned tag is master tag
-      if (tagID == tags[0])
+      // Check if scanned tag is master tag from client
+      if (tagID == userInput)
       {
           Serial.print("Access granted \n");
         
           // Unlock door
-          servo.write(135);
+          servo.write(170);
 
           // Wait 3 seconds
           delay(3000);
@@ -97,12 +114,12 @@ void loop() {
 
 uint8_t getID() {
     // Getting ready for Reading PICCs
-    if ( ! mfrc522.PICC_IsNewCardPresent()) {
+    if ( !mfrc522.PICC_IsNewCardPresent() ) {
         // If a new PICC placed to RFID reader continue 
         return 0;
     }
     
-    if ( ! mfrc522.PICC_ReadCardSerial()) {
+    if ( !mfrc522.PICC_ReadCardSerial() ) {
         // Since a PICC placed get Serial and continue
         return 0;
     }
@@ -120,10 +137,4 @@ uint8_t getID() {
     mfrc522.PICC_HaltA(); // Stop reading
     
     return 1;
-}
-
-void printNormalModeMessage() {
-    delay(1500);
-    Serial.print("-Access Control- \n");
-    Serial.print("Scan Your Tag! \n");
 }
