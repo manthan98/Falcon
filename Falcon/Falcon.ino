@@ -5,13 +5,19 @@
 #define RST_PIN 9
 #define SS_PIN 10
 
+// Patient object
+typedef struct {
+    char* id;
+    String isAllowed;
+    String isInside;
+} Patient;
+
 byte readCard[4];
-char* tags[2] = {};
-int tagsCount = 0;
+Patient patients[2];
+int patientsCount = 0;
 String tagID = "";
 String userInput;
 boolean successRead = false;
-boolean needsUserInput = true;
 
 // Create instances
 MFRC522 mfrc522(SS_PIN, RST_PIN); // RFID module
@@ -31,11 +37,14 @@ void setup() {
     while (!successRead) {
         successRead = getID();
         if ( successRead == true) {
-            tags[tagsCount] = strdup(tagID.c_str()); // Sets the master tag into position 0 in the array
+            char* masterID = strdup(tagID.c_str()); // Extract tag ID
+            Patient masterPatient = { masterID, "1", "0" };
+            patients[patientsCount] = masterPatient;
+            patientsCount++;
+            
             Serial.print("Master Tag Set! \n");
-            Serial.print(tags[tagsCount]);
+            Serial.print(masterID);
             Serial.print("\n");
-            tagsCount++;
         }
     }
     successRead = false;
@@ -46,28 +55,41 @@ void setup() {
     while (!successRead) {
         successRead = getID();
         if ( successRead == true) {
-            tags[tagsCount] = strdup(tagID.c_str()); // Sets the secondary tag into position 1 in the array
+            char* secondaryID = strdup(tagID.c_str()); // Extract tag ID
+            Patient secondaryPatient = { secondaryID, "0", "0" };
+            patients[patientsCount] = secondaryPatient;
+            patientsCount++;
+            
             Serial.print("Secondary Tag Set! \n");
-            Serial.print(tags[tagsCount]);
+            Serial.print(secondaryID);
             Serial.print("\n");
-            tagsCount++;
         }
     }
     successRead = false;
-
-    // Request master client key from server
-    Serial.println(3);
 }
 
 void loop() {
 
-      while (needsUserInput) {
-          if (Serial.available()) {
-              userInput = Serial.readString();
-              if (userInput != NULL) {
-                  Serial.print(userInput);
-                  Serial.print("\n");
-                  needsUserInput = false;
+      if (Serial.available()) {
+          userInput = Serial.readString();
+
+          if (userInput == "LOCATION") {
+              Serial.println("{ \"" + String(patients[0].id) + "\": \"" + patients[0].isInside + "\", \"" + String(patients[1].id) + "\": \"" + patients[1].isInside + "\" }");
+          } else if (userInput == "OPEN DOOR") {
+              operateDoor();
+          } else if (userInput == "733F511D: 0" || userInput == "CE6FC973: 0") {
+              for (uint8_t i = 0; i < patientsCount; i++) {
+                  if (String(patients[i].id) == userInput.substring(0, 8)) {
+                      patients[i].isAllowed = "0";
+                      Serial.println("Successfully updated tag ID: " + String(patients[i].id));
+                  }
+              }
+          } else if (userInput == "733F511D: 1" || userInput == "CE6FC973: 1") {
+              for (uint8_t i = 0; i < patientsCount; i++) {
+                  if (String(patients[i].id) == userInput.substring(0, 8)) {
+                      patients[i].isAllowed = "1";
+                      Serial.println("Successfully updated tag ID: " + String(patients[i].id));
+                  }
               }
           }
       }
@@ -93,23 +115,34 @@ void loop() {
       mfrc522.PICC_HaltA(); // Stop reading
 
       // Check if scanned tag is master tag from client
-      if (tagID == userInput)
+      if (tagID == patients[0].id && (patients[0].isAllowed == "1"))
       {
           Serial.print("Access granted \n");
-        
-          // Unlock door
-          servo.write(170);
-
-          // Wait 3 seconds
-          delay(3000);
-
-          // Lock door
-          servo.write(0);
+          operateDoor();
+          patients[0].isInside = patients[0].isInside == "0" ? "1" : "0";
+          Serial.println(patients[0].isInside);
+      } else if (tagID == patients[1].id && (patients[1].isAllowed == "1"))
+      {
+          Serial.print("Access granted \n");
+          operateDoor();
+          patients[1].isInside = patients[1].isInside == "0" ? "1" : "0";
+          Serial.println(patients[1].isInside);
       } else
       {
           Serial.print("Access denied! \n");
       }
       
+}
+
+void operateDoor() {
+    // Unlock door
+    servo.write(170);
+
+    // Wait 10 seconds
+    delay(10000);
+
+    // Lock door
+    servo.write(0);
 }
 
 uint8_t getID() {
